@@ -1,6 +1,7 @@
 """How to download and verify Python versions."""
 
 import os
+import subprocess
 import tarfile
 import urllib2
 from contextlib import closing
@@ -42,10 +43,70 @@ def download(version):
     force_download(version)
 
 def _builddir(version):
-    return os.path.join('Build', version)
+    return os.path.join('Build', 'Python-' + version)
 
 def untar(version):
     if not os.path.exists('Build'):
         os.mkdir('Build')
-    tar = tarfile.open(_tarpath(version))
-    tar.extractall('Build')
+    builddir = _builddir(version)
+    if not os.path.exists(builddir):
+        tar = tarfile.open(_tarpath(version))
+        tar.extractall('Build')
+
+def cmmi(version):
+    builddir = _builddir(version)
+    # patch
+    with open(os.path.join(builddir, 'Objects', 'fileobject.c'), 'r+') as f:
+        s = f.read()
+        if '_getline' not in s:
+            s = s.replace('getline', '_getline')
+            f.seek(0)
+            f.write(s)
+    if version.startswith('2.0'):
+        with open(os.path.join(builddir, 'Modules', 'readline.c'), 'r+') as f:
+            s = f.read()
+            if 'rl_read_init_file(const char *)' not in s:
+                s = s.replace('rl_read_init_file(char *)',
+                              'rl_read_init_file(const char *)')
+                s = s.replace('rl_insert_text(char *)',
+                              'rl_insert_text(const char *)')
+                f.seek(0)
+                f.truncate()
+                f.write(s)
+    if '2.1' <= version < '2.4':
+        with open(os.path.join(builddir, 'Modules', 'readline.c'), 'r+') as f:
+            s = f.read()
+            if '\nstatic int history_length' in s:
+                s = s.replace('\nstatic int history_length',
+                              '\n/*static int history_length')
+                f.seek(0)
+                f.truncate()
+                f.write(s)
+    # go
+    if not os.path.exists('usr'):
+        os.mkdir('usr')
+    args = ['/bin/bash', 'configure',
+            '--prefix=' + os.path.join(os.getcwd(), 'usr'),
+            '--with-threads']
+    if version.startswith('2.3'):
+        args.append('BASECFLAGS=-U_FORTIFY_SOURCE')
+
+    config_out = os.path.join(builddir, 'config.out')
+    with open(config_out, 'w') as f:
+        subprocess.check_call(args, stdout=f, stderr=subprocess.STDOUT,
+                              cwd=builddir)
+
+    if version < '2.1':
+        with open(os.path.join(builddir, 'Modules', 'Setup.in'), 'r+') as f:
+            s = f.read()
+            for module in ('*shared*', 'readline', '_locale', 'crypt',
+                           'syslog', 'zlib'):
+                s = s.replace('\n#' + module, '\n' + module)  # uncomment line
+            f.seek(0)
+            f.write(s)
+
+    subprocess.check_call(['make'], cwd=builddir)
+    subprocess.check_call(['make', 'install'], cwd=builddir)
+    mainpython = os.path.join('usr', 'bin', 'python')
+    if os.path.exists(mainpython):
+        os.unlink(mainpython)

@@ -7,3 +7,4 @@ def main():
                     '2.4.6', '2.5.5', '2.6.6', '2.7.1', '3.2'):
         battery.build.download(version)
         battery.build.untar(version)
+        battery.build.cmmi(version)
