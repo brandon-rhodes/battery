@@ -90,6 +90,8 @@ def cmmi(version):
             '--with-threads']
     if version.startswith('2.3'):
         args.append('BASECFLAGS=-U_FORTIFY_SOURCE')
+    if version >= '2.3':
+        args.append('--enable-shared')
 
     config_out = os.path.join(builddir, 'config.out')
     with open(config_out, 'w') as f:
