@@ -1,1 +1,9 @@
 ^.*egg-info$
+^Build$
+^Download$
+^bin$
+^build$
+^include$
+^lib$
+^local$
+^usr$
