@@ -107,8 +107,25 @@ def cmmi(version):
             f.seek(0)
             f.write(s)
 
-    subprocess.check_call(['make'], cwd=builddir)
-    subprocess.check_call(['make', 'install'], cwd=builddir)
+    # On Ubuntu Natty and later, libraries live under directories with
+    # names like "/usr/lib/i386-linux-gnu".
+
+    if version >= '2.5' and os.path.exists('/usr/bin/dpkg-architecture'):
+        arch = subprocess.check_output([
+                'dpkg-architecture', '-qDEB_BUILD_MULTIARCH']).strip()
+        if os.path.isdir('/usr/lib/' + arch):
+            with open(os.path.join(builddir, 'setup.py'), 'r+') as f:
+                s = f.read()
+                s = s.replace('lib64', 'lib/' + arch)
+                f.seek(0)
+                f.write(s)
+
+    env = dict(os.environ)
+    env['LD_LIBRARY_PATH'] = os.path.join(os.getcwd(), 'usr', 'lib')
+
+    subprocess.check_call(['make'], cwd=builddir, env=env)
+    subprocess.check_call(['make', 'install'], cwd=builddir, env=env)
+
     mainpython = os.path.join('usr', 'bin', 'python')
     if os.path.exists(mainpython):
         os.unlink(mainpython)
